@@ -124,7 +124,7 @@ def findGlobalContours(img, img_gray):
 
     return global_masks
 
-def localThresh(mask_global):
+def determineThresh(mask_global):
     """
     Is presented a masked image consisting of one global flake, and a list of prominent peak positions for the flake's
     pixel intensity histogram. Returns a list of images where the ith element is an image of the ith local flake within
@@ -142,40 +142,62 @@ def localThresh(mask_global):
     plt.plot(hist)
 
     # Then we determine the peaks of the histogram
-    peak_pos = signal.find_peaks(hist.flatten(), prominence=20, distance=10)
+    peak_pos = signal.find_peaks(hist.flatten(), prominence=30, distance=10)
     plt.plot(peak_pos[0].tolist(), [hist[i] for i in peak_pos[0]], 'ro')
     hist.flatten()
 
     # Now we determine the threshold values surrounding each peak position, and append to list
-    for i in range(len(peak_pos[0])):
-        if i == 0:
-            below_index = 0
-            plt.plot(below_index, int(hist[below_index]), 'yo')
-            thresholds.append(below_index)
+    if len(peak_pos[0]) >= 2:
+        for i in range(len(peak_pos[0])):
+            if i == 0:
+                below_index = 30
+                above_index = ((peak_pos[0][i + 1] - peak_pos[0][i]) // 2) + peak_pos[0][i]
 
-        elif i != len(peak_pos[0]) - 1 and i != 0:
-            below_index = ((peak_pos[0][i] - peak_pos[0][i - 1]) // 2) + peak_pos[0][i - 1]
-            above_index = ((peak_pos[0][i + 1] - peak_pos[0][i]) // 2) + peak_pos[0][i]
+                plt.plot(below_index, int(hist[below_index]), 'yo')
+                plt.plot(above_index, int(hist[above_index]), 'yo')
 
-            plt.plot(below_index, int(hist[below_index]), 'yo')
-            plt.plot(above_index, int(hist[above_index]), 'yo')
+                thresholds.append(below_index)
+                thresholds.append(above_index)
 
-            thresholds.append(below_index)
-            thresholds.append(above_index)
+            elif i != len(peak_pos[0]) - 1 and i != 0:
+                above_index = ((peak_pos[0][i + 1] - peak_pos[0][i]) // 2) + peak_pos[0][i]
 
-        else:
-            print(i)
-            below_index = ((peak_pos[0][i] - peak_pos[0][i - 1]) // 2) + peak_pos[0][i - 1]
-            above_index = 250
+                plt.plot(above_index, int(hist[above_index]), 'yo')
 
-            plt.plot(below_index, int(hist[below_index]), 'yo')
-            plt.plot(above_index, int(hist[above_index]), 'yo')
+                thresholds.append(above_index)
 
-            thresholds.append(below_index)
-            thresholds.append(above_index)
+            else:
+                above_index = 250
 
+                plt.plot(above_index, int(hist[above_index]), 'yo')
+
+                thresholds.append(above_index)
+        plt.show()
+        return thresholds
+
+    # Handles the case where a smaller homogenous global mask is being analyzed, and one or no peaks are detected
     plt.show()
-    return thresholds
+    return [30, 250]
+
+
+def localThresh(mask_global):
+    """
+    Is presented a masked global flake, returns a list where each element in the list is a local flake.
+    :param mask_global:
+    :return masks_local:
+    """
+    thresholds = determineThresh(mask_global)
+    kernel = np.ones((3, 3), np.uint8)
+    mask_gray = cv2.cvtColor(mask_global, cv2.COLOR_BGR2GRAY)
+    masks_local = []
+
+    for i in range(len(thresholds) - 1):
+        mask = cv2.inRange(mask_gray, int(thresholds[i]), int(thresholds[i + 1]))
+        mask_erosion = cv2.erode(mask, kernel, iterations=1)
+        masks_local.append(mask_erosion)
+
+    return masks_local
+
 
 def testCase(img, bkg):
     """
@@ -185,13 +207,27 @@ def testCase(img, bkg):
     """
     img, img_gray = preProcess(img, bkg)
     global_contours = findGlobalContours(img, img_gray)
+    # list = []
+    # for i in global_contours:
+    #     local = localThresh(i)
+    #     list.append(local)
+    # return list
+    local = localThresh(global_contours[0])
     cv2.imshow('test', global_contours[0])
-    thresh = localThresh(global_contours[0])
-    return thresh
+    return local
 
-
+count = 0
 test = testCase(img, bkg)
-print(test)
+for i in test:
+    cv2.imshow(str(count), i)
+    count += 1
+
+# for i in test:
+#     for j in i:
+#         cv2.imshow(str(count), j)
+#         count += 1
+
+
 
 
 # def findContrast(local_contours):
