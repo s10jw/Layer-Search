@@ -9,10 +9,10 @@ from cv2 import CV_8U
 from matplotlib import pyplot as plt
 
 '''
-Throughout we use the term 'global flake' or 'global contour' to represent one composite sample of graphene. Each global
-flake or contour may in actuality be composed of numerous 'local flakes' or 'local contours'. These local flakes or
-contours often have varying thicknesses, which is why we must distinguish between them and the global flake they compose
-in order to properly determine the contrasts and subsequent thicknesses of the samples in question.
+Throughout we use the term 'global flake' or 'global contour' to represent one graphene flake. Each global
+flake or contour may be composed of regions of varying thicknesses, throughout this program, these regions are referred 
+to as 'local flakes' or 'local contours'. A 'Global mask' refers to a 'global flake' that has had a mask applied to it, 
+while a 'local mask' refers to a 'local flake' that has had a mask applied to it.
 '''
 ###
 # First we will do some pre-processing on the original sample image.
@@ -64,7 +64,7 @@ def globalThresh(gray_img):
     max_index = np.argmax(hist)
     upperb = int(max_index - 5)
 
-    # Now we simply threshold from 40 to the maximum index
+    # Now we simply threshold from 35 to the maximum index
     img_thresh = cv2.inRange(gray_img, 35, upperb)
 
     return img_thresh
