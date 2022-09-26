@@ -130,42 +130,6 @@ def findGlobalContours(img, img_gray):
     return global_masks
 
 
-def meanShift(hist):
-    start = np.where(hist != 1)[0][0]
-    window = 3
-    temp_avg = 0
-    peaks = []
-    averages = []
-
-    for i in range(len(hist)):
-        if i == 0:
-            start += 2
-
-        hold = hist[start - window: start + window]
-        avg = np.average(hold)
-
-        difference_array = np.absolute(hold - avg)
-        index = difference_array.argmin()
-
-        avg = hold[index]
-        averages.append(avg)
-
-        if temp_avg - 5 <= avg <= temp_avg + 5 and avg != 1:
-            peaks.append((start - window) + index)
-            start += index + window
-        elif avg == 1:
-            return peaks
-        else:
-            start += index
-            temp_avg = avg
-
-
-
-
-
-
-
-
 def determineThresh(mask_global):
     """
     Is presented a masked image consisting of one global flake, and a list of prominent peak positions for the flake's
@@ -178,40 +142,18 @@ def determineThresh(mask_global):
 
     # First we calculate the pixel intensity histogram of the global mask
     mask_gray = cv2.cvtColor(mask_global, cv2.COLOR_BGR2GRAY)
-    cv2.imshow('w/o contrast increase', mask_gray)
-
-    # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
-    # # Top Hat Transform
-    # topHat = cv2.morphologyEx(mask_gray, cv2.MORPH_TOPHAT, kernel)
-    # # Black Hat Transform
-    # blackHat = cv2.morphologyEx(mask_gray, cv2.MORPH_BLACKHAT, kernel)
-    # mask_gray = mask_gray + topHat - blackHat
-
-    # xp = [0, 64, 128, 192, 255]
-    # fp = [0, 16, 128, 240, 255]
-    # x = np.arange(256)
-    # table = np.interp(x, xp, fp).astype('uint8')
-    # mask_gray = cv2.LUT(mask_gray, table)
-    copy = mask_gray.copy()
-    copy.flatten()
-    std = np.std(copy)
-    mean = np.mean(copy)
-    max = mean + (3 * std)
-    min = mean - (3 * std)
-    band = (copy - min) / (max - min)
-    band = band * 255
-
-    cv2.imshow("w/ contrast increase", mask_gray)
 
     hist = cv2.calcHist([mask_gray], [0], None, [255], [1, 256])
-    plt.plot(hist)
+    # plt.plot(hist)
+
     hist = smoothHist(mask_gray)
     plt.plot(hist)
 
+    hist = meanShift(mask_global)
+
     # Then we determine the peaks of the histogram
-    peak_pos = signal.find_peaks(hist.flatten(), prominence=30, distance=10)
-    print(peak_pos[0])
-    plt.plot(peak_pos[0].tolist(), [hist[i] for i in peak_pos[0]], 'ro', label = 'Peaks')
+    peak_pos = signal.find_peaks(hist.flatten(), prominence=30, distance=5, height=55)
+    plt.plot(peak_pos[0].tolist(), [hist[i] for i in peak_pos[0]], 'ro', label='Peaks')
     hist.flatten()
 
     # Now we determine the threshold values surrounding each peak position, and append to list
@@ -237,7 +179,7 @@ def determineThresh(mask_global):
             else:
                 above_index = 250
 
-                plt.plot(above_index, int(hist[above_index]), 'yo',  label = 'Thresholds')
+                plt.plot(above_index, int(hist[above_index]), 'yo',  label='Thresholds')
 
                 thresholds.append(above_index)
         plt.legend(loc="upper right")
@@ -262,16 +204,27 @@ def localThresh(mask_global):
 
     for i in range(len(thresholds) - 1):
         mask = cv2.inRange(mask_gray, int(thresholds[i]), int(thresholds[i + 1]))
+
         mask_erosion = cv2.erode(mask, kernel, iterations=1)
-        masks_local.append(mask_erosion)
+        mask_dilation = cv2.dilate(mask_erosion, kernel, iterations=1)
+
+        masks_local.append(mask_dilation)
 
     return masks_local
-def meanShiftTest(img):
-    meanshift = cv2.pyrMeanShiftFiltering(img, 5, 5)
+
+
+def meanShift(mask_global):
+    meanshift = cv2.pyrMeanShiftFiltering(mask_global, 20, 7)
+
     grayshift = cv2.cvtColor(meanshift, cv2.COLOR_BGR2GRAY)
     hist = smoothHist(grayshift)
-    plt.plot(hist)
-    plt.show()
+
+    plt.plot(hist, label='MeanShift Test')
+
+    # cv2.imshow('original', img)
+    # cv2.imshow('meanshiftTest', meanshift)
+    return hist
+
 
 
 def testCase(img, bkg):
@@ -283,12 +236,13 @@ def testCase(img, bkg):
     img, img_gray = preProcess(img, bkg)
     global_contours = findGlobalContours(img, img_gray)
 
-    mask_gray = cv2.cvtColor(global_contours[0], cv2.COLOR_BGR2GRAY)
-    meanfit = Mean_Shift()
-    meanfit.fit(global_contours[0])
-    centroids = meanfit.centroids
-    print(centroids)
+    thresh = localThresh(global_contours[0])
 
+
+    plt.show()
+
+    for i, val in enumerate(thresh):
+        cv2.imshow(str(i) + '', val)
 
     cv2.imshow('original', img)
     return img
