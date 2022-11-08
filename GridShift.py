@@ -5,8 +5,6 @@ from matplotlib import pyplot as plt
 import sys
 import scipy.signal as signal
 import time
-from numba import jit
-from shutil import copyfile
 import os
 
 class GridShift:
