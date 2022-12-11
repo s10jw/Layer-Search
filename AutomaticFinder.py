@@ -14,20 +14,17 @@ flake or contour may be composed of regions of varying thicknesses, throughout t
 to as 'local flakes' or 'local contours'. A 'Global mask' refers to a 'global flake' that has had a mask applied to it, 
 while a 'local mask' refers to a 'local flake' that has had a mask applied to it.
 '''
+########################################################################################################################
+# Set folder path to folder containing unprocessed samples. Set substrate to the thickness of SiO2 in nm. Substrate
+# should be an int, folder should be a string, unless working with demo files (production specific).
+########################################################################################################################
+
+folder = 'Samples (demo)'
+substrate = '90nm(demo)'
+
 ###
 # First we will do some pre-processing on the original sample image.
 ###
-
-# Import Sample Img and Bkg
-# img = cv2.imread('Assets/5_30_2.jpg')
-# bkg = cv2.imread('Assets/bkg2.jpg')
-
-img = cv2.imread('Assets/6_6_2_1.jpg')
-bkg = cv2.imread('Assets/6_6_bkg.jpg')
-
-# Finds average background color
-average_color_row = np.average(bkg, axis=0)
-average_bkg_color = np.average(average_color_row, axis=0)
 
 def preProcess(img, bkg):
     # Crops image to exclude microscope and lens flare
@@ -37,6 +34,9 @@ def preProcess(img, bkg):
     img = img[x_cut:x - x_cut, y_cut:y - y_cut]
     bkg = bkg[x_cut:x - x_cut, y_cut:y - y_cut]
 
+    # Finds average background color
+    average_color_row = np.average(bkg, axis=0)
+    average_bkg_color = np.average(average_color_row, axis=0)
     # Display Original Image
     original = img.copy()
     cv2.imshow('original', original)
@@ -44,28 +44,16 @@ def preProcess(img, bkg):
     # Normalizes Img and Converts to Grayscale
     img_c = original.copy()
     img_c = np.divide(img_c, bkg) * 100
-    img_norm = img_c.astype(np.uint8)
-    img_gray = cv2.cvtColor(img_norm, cv2.COLOR_BGR2GRAY)
-    # img_gray[img_gray >= 128], img_norm[img_norm >= 128] = 0, 0
-    img_gray = np.multiply(img_gray, 2)
-    img_norm = np.multiply(img_norm, 2)
+    img_norm = img_c.astype('uint8')
 
+    img_norm = cv2.multiply(img_norm, (1, 1, 1, 1), scale=1.75)
+    img_norm = img_norm.astype('uint8')
+    img_gray = cv2.cvtColor(img_norm, cv2.COLOR_BGR2GRAY)
 
     # Apply mean-shift algorithm
     meanshift = cv2.pyrMeanShiftFiltering(img_norm, 10, 5)
 
-    # Show images and histograms to visualize results
-    cv2.imshow('processed', img_norm)
-    cv2.imshow('meanshift', meanshift)
-    hist_original = cv2.calcHist([img], [0], None, [255], [1, 256])
-    plt.plot(hist_original, label='Original Image')
-    hist_processed = cv2.calcHist([meanshift], [0], None, [255], [1, 256])
-    plt.plot(hist_processed, label='Processed Image')
-    plt.legend(loc="upper right")
-    plt.show()
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    return meanshift, img_gray, original
+    return meanshift, img_gray, original, average_bkg_color
 
 
 def smoothHist(gray_img):
@@ -107,7 +95,6 @@ def globalThresh(gray_img):
     kernel = np.ones((3, 3), np.uint8)
     erosion = cv2.erode(img_thresh, kernel, iterations=1)
     dilation = cv2.dilate(erosion, kernel, iterations=1)
-    cv2.imshow('dilation', dilation)
     return dilation
 
 def filterContours(contours):
@@ -155,29 +142,11 @@ def findGlobalContours(img, img_gray):
         cv2.drawContours(temp, filtered_contours, i, color=(255, 255, 255), thickness=-1)
         cv2.drawContours(filtered_thresh, filtered_contours, i, color=(255, 255, 255), thickness=-1)
 
-        # Saves pixel locations within ith global flake
-        pts = np.where(temp == 255)
-
         # Masks original image for the ith global contour, and appends image to list global_masks
         mask = cv2.cvtColor(temp, cv2.COLOR_BGR2GRAY)
         masked_global = cv2.bitwise_and(img, img, mask=mask)
         global_masks.append(masked_global)
 
-        # Shows individual global masks
-        # cv2.imshow('mask', masked_global)
-        # cv2.waitKey(0)
-
-    # Shows thresholded image after smaller flakes are filtered out
-    cv2.imshow('filtered thresh', filtered_thresh)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-    # Shows masked image
-    mask = cv2.cvtColor(filtered_thresh, cv2.COLOR_BGR2GRAY)
-    masked_global = cv2.bitwise_and(img, img, mask=mask)
-    cv2.imshow('Masked Image', masked_global)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
     return global_masks
 
 
@@ -196,8 +165,6 @@ def determineThresh(mask_global):
     # Apply Savgol Filtering
     hist = smoothHist(mask_gray)
     hist_original = cv2.calcHist([mask_gray], [0], None, [255], [1, 256])
-    plt.plot(hist_original, label='Original')
-    plt.plot(hist, label='Smoothed')
 
     # Then we determine the peaks of the histogram
     peak_pos = signal.find_peaks(hist.flatten(), prominence=50, distance=6, height=70)
@@ -230,13 +197,9 @@ def determineThresh(mask_global):
                 plt.plot(above_index, int(hist[above_index]), 'yo',  label='Thresholds')
 
                 thresholds.append(above_index)
-        plt.legend(loc="upper right")
-        plt.show()
-        return thresholds
 
+        return thresholds
     # Handles the case where a smaller homogenous global mask is being analyzed, and one or no peaks are detected
-    plt.legend(loc="upper right")
-    plt.show()
     return [30, 250]
 
 
@@ -261,9 +224,9 @@ def localThresh(mask_global):
 
     return masks_local
 
-def findContrast(mask_local):
+def findContrast(mask_local, average_bkg_color):
     """
-    Is presented a local mask, returns contrast and color indicator of local mask.
+    Is presented a local mask and average background color, returns contrast and color indicator of local mask.
     """
     # Access the image pixels and create a 1D numpy array then add to list
     temp_pts = np.where(mask_local == 255)
@@ -272,11 +235,11 @@ def findContrast(mask_local):
     bkg_gray = .114 * average_bkg_color[0] + .587 * average_bkg_color[1] + .299 * average_bkg_color[2]
     sample_gray = .114 * avg_pixel[0] + .587 * avg_pixel[1] + .299 * avg_pixel[2]
     contrast = abs((bkg_gray - sample_gray) / bkg_gray)
-    if 0 < contrast <= .03:
+    if 0 < contrast <= .012:
         return contrast, 1
-    elif .03 < contrast <= .05:
+    elif .012 < contrast <= .025:
         return contrast, 2
-    elif .05 < contrast <= 1:
+    elif .05 < contrast <= .9:
         return contrast, 3
     else:
         return contrast, 4
@@ -290,7 +253,7 @@ def AutomaticFinder(img, bkg):
     :return img_final, img_original:
     """
     # Pre-process the images
-    img_c, img_gray, img_original = preProcess(img, bkg)
+    img_c, img_gray, img_original, avg_bkg_color = preProcess(img, bkg)
     img_final = img_original.copy()
 
     # Find suitable global flakes
@@ -301,7 +264,7 @@ def AutomaticFinder(img, bkg):
         masks_local = localThresh(mask_global)
         for mask_local in masks_local:
             cont = True
-            contrast, thickness = findContrast(mask_local)
+            contrast, thickness = findContrast(mask_local, avg_bkg_color)
             contours, hierarchy = cv2.findContours(mask_local, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
             contours = filterContours(contours)
 
@@ -326,27 +289,25 @@ def AutomaticFinder(img, bkg):
                                 (20, 20, 20), 2)
     return img_final, img_original
 
-def testCase(img, bkg):
-    """
-    Scratch function used to test different steps throughout the creation of this project.
-    :param img:
-    :return:
-    """
-    img, img_gray, original = preProcess(img, bkg)
-    global_contours = findGlobalContours(img, img_gray)
+def load_images_from_folder(folder, substrate=285):
+    if substrate == 285:
+        bkg = cv2.imread('Assets/285nm.jpg')
+    elif substrate == 90:
+        bkg = cv2.imread('Assets/90nm.png')
+    elif substrate == '90nm(demo)':
+        bkg = cv2.imread('Samples (demo)/90nm(demo).jpg')
 
-    thresh = localThresh(global_contours[0])
+    for filename in os.listdir(folder):
+        global img
+        img = cv2.imread(os.path.join(folder, filename))
+        if img is not None:
+            final_img, original_img = AutomaticFinder(img, bkg)
+            cv2.imshow('Final Image', final_img)
+            cv2.imshow('Original Image', original_img)
+            cv2.waitKey(0)
 
-    for i, val in enumerate(thresh):
-        cv2.imshow(str(i) + '', val)
 
-    return img
-
-final_img, original_img = AutomaticFinder(img, bkg)
-
-cv2.imshow('Final Image', final_img)
-cv2.imshow('Original Image', original_img)
-cv2.waitKey(0)
+load_images_from_folder(folder, substrate)
 
 
 

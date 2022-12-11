@@ -20,10 +20,10 @@ while a 'local mask' refers to a 'local flake' that has had a mask applied to it
 
 # Import Sample Img and Bkg
 # img = cv2.imread('Assets/5_30_2.jpg')
-# bkg = cv2.imread('Assets/bkg2.jpg')
+# bkg = cv2.imread('Assets/90nm(demo).jpg')
 
 img = cv2.imread('Assets/6_6_2_1.jpg')
-bkg = cv2.imread('Assets/6_6_bkg.jpg')
+bkg = cv2.imread('Assets/285nm.jpg')
 
 # Finds average background color
 average_color_row = np.average(bkg, axis=0)
@@ -44,12 +44,11 @@ def preProcess(img, bkg):
     # Normalizes Img and Converts to Grayscale
     img_c = original.copy()
     img_c = np.divide(img_c, bkg) * 100
-    img_norm = img_c.astype(np.uint8)
-    img_gray = cv2.cvtColor(img_norm, cv2.COLOR_BGR2GRAY)
-    # img_gray[img_gray >= 128], img_norm[img_norm >= 128] = 0, 0
-    img_gray = np.multiply(img_gray, 2)
-    img_norm = np.multiply(img_norm, 2)
+    img_norm = img_c.astype('uint8')
 
+    img_norm = cv2.multiply(img_norm, (1, 1, 1, 1), scale=1.75)
+    img_norm = img_norm.astype('uint8')
+    img_gray = cv2.cvtColor(img_norm, cv2.COLOR_BGR2GRAY)
 
     # Apply mean-shift algorithm
     meanshift = cv2.pyrMeanShiftFiltering(img_norm, 10, 5)
