@@ -1,7 +1,1 @@
-# Layer-Search
-'''
-Throughout we use the term 'global flake' or 'global contour' to represent one graphene flake. Each global
-flake or contour may be composed of regions of varying thicknesses, throughout this program, these regions are referred 
-to as 'local flakes' or 'local contours'. A 'Global mask' refers to a 'global flake' that has had a mask applied to it, 
-while a 'local mask' refers to a 'local flake' that has had a mask applied to it.
-'''
+While I was working at the Ultra-Fast Nano Optics group at UC Berkeley, I developed a python script that leveraged the computer vision library OpenCV in order to detect graphene flakes from images we took under microscope. My script had to pre-process the image to clean the data for better analysis, it then had to be able to identify desirable graphene flakes from undesirable ones and surrounding noise. The whole project taught me a lot about clustering algorithms, signal processing, image processing, and other forms of data analysis.
